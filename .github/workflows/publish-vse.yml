@@ -24,6 +24,9 @@ on:
         type: string
         description: Tag to release (empty for latest tag)
         required: false
+    secrets:
+      VSCE_PAT:
+        required: true
 
 jobs:
   test-and-publish:
