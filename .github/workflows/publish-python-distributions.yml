@@ -15,6 +15,15 @@ on:
         type: boolean
         default: true
         description: Publish to GitHub Release
+      use_changelog:
+        type: boolean
+        default: true
+        description: Extract release notes from CHANGELOG.md
+      changelog_file:
+        type: string
+        default: CHANGELOG.md
+        description: Path to changelog file
+        required: false
       release_tag:
         type: string
         description: Tag to package (empty for latest tag)
@@ -105,11 +114,11 @@ jobs:
           echo "::set-output name=name::$repo_name"
 
       - name: Extract release notes
-        if: ${{ !cancelled() && inputs.publish_gh_release }}
+        if: ${{ !cancelled() && inputs.publish_gh_release && inputs.use_changelog }}
         id: extract-release-notes
         uses: ffurrer2/extract-release-notes@v2
         with:
-          changelog_file: CHANGELOG.md
+          changelog_file: ${{ inputs.changelog_file }}
 
       - name: Create GitHub Release 📦
         if: ${{ !cancelled() && inputs.publish_gh_release }}
