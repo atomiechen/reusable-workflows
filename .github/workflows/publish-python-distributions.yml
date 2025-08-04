@@ -28,6 +28,10 @@ on:
         type: string
         description: Tag to package (empty for latest tag)
         required: false
+      package_dir:
+        type: string
+        default: .
+        description: Directory where the Python package is located
     secrets:
       TEST_PYPI_API_TOKEN:
         required: true
@@ -81,18 +85,20 @@ jobs:
       with:
         python-version: "3.x"
     - name: Install pypa/build
+      working-directory: ${{ inputs.package_dir }}
       run: >-
         python3 -m
         pip install
         build
         --user
     - name: Build a binary wheel and a source tarball
+      working-directory: ${{ inputs.package_dir }}
       run: python3 -m build
     - name: Store the distribution packages
       uses: actions/upload-artifact@v4
       with:
         name: python-package-distributions
-        path: dist/
+        path: ${{ inputs.package_dir }}/dist/
     - name: Store the changelog file
       if: ${{ inputs.use_changelog }}
       uses: actions/upload-artifact@v4
