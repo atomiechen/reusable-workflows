@@ -1,0 +1,46 @@
+name: Checkout Tag 🏷️
+description: Get the tag according to the input or fetch the latest tag, and checkout to that tag.
+
+inputs:
+  tag:
+    description: Tag to checkout (empty for latest tag)
+    required: false
+    default: ""
+
+outputs:
+  tag:
+    description: The tag that was checked out
+    value: ${{ steps.set_tag.outputs.tag }}
+
+runs:
+  using: "composite"
+  steps:
+    - name: Checkout code with all tags
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 0  # Fetch all history for all branches and tags
+        persist-credentials: false
+    - name: Verify and set output tag
+      id: set_tag
+      shell: bash
+      run: |
+        specified_tag=${{ inputs.tag }}
+        if [ -z "$specified_tag" ]; then
+          echo "Input tag is empty. Fetching latest tag."
+          specified_tag=$(git describe --tags $(git rev-list --tags --max-count=1))
+          if [ -z "$specified_tag" ]; then
+            echo "No latest tag available. Exiting workflow."
+            exit 1
+          fi
+        else
+          if ! git rev-parse -q --verify "refs/tags/$specified_tag" >/dev/null; then
+            echo "Invalid tag '$specified_tag'. Exiting workflow."
+            exit 1
+          fi
+        fi
+        echo "tag=$specified_tag" >> $GITHUB_OUTPUT
+    - name: Checkout to specified tag
+      shell: bash
+      run: |
+        echo "Checking out to tag ${{ steps.set_tag.outputs.tag }}"
+        git checkout ${{ steps.set_tag.outputs.tag }}
