@@ -6,7 +6,11 @@ on:
       publish_marketplace:
         type: boolean
         default: false
-        description: Publish to marketplace
+        description: Publish to VS Marketplace
+      publish_openvsx:
+        type: boolean
+        default: false
+        description: Publish to Open VSX Registry
       publish_github:
         type: boolean
         default: false
@@ -27,15 +31,20 @@ on:
     secrets:
       VSCE_PAT:
         required: true
+      OVSX_PAT:
+        required: true
 
 jobs:
-  test-and-publish:
+  test-and-build:
+    name: Test and Build VSCode Extension 📦
     runs-on: ubuntu-latest
+    outputs:
+      release_tag: ${{ steps.set_release_tag.outputs.tag }}
     steps:
       - name: Check if all checkboxes are unchecked
         id: check_checkboxes
         run: |
-          if [[ ${{ inputs.publish_marketplace }} == false && ${{ inputs.publish_github }} == false ]]; then
+          if [[ ${{ inputs.publish_marketplace }} == false && ${{ inputs.publish_openvsx }} == false && ${{ inputs.publish_github }} == false ]]; then
             echo "All checkboxes are unchecked. Exiting workflow."
             exit 1
           fi
@@ -49,46 +58,110 @@ jobs:
           echo "Ref: ${{ github.ref }}"
           echo "Release tag: ${{ steps.set_release_tag.outputs.tag }}"
           echo "Publish marketplace input: ${{ inputs.publish_marketplace }}"
+          echo "Publish Open VSX input: ${{ inputs.publish_openvsx }}"
           echo "Publish GitHub input: ${{ inputs.publish_github }}"
       - name: Install Node.js
         uses: actions/setup-node@v4
         with:
           node-version: 18.x
-      - run: npm install
-      - run: xvfb-run -a npm test
+      - run: npm ci
+      - run: xvfb-run -a npx vscode-test
+        if: runner.os == 'Linux'
       - name: Build package
-        if: inputs.publish_github
-        run: npm run package
+        run: npx @vscode/vsce package
+      - name: Store the extension package
+        uses: actions/upload-artifact@v4
+        with:
+          name: vscode-extension-package
+          path: "*.vsix"
+      - name: Store the changelog file
+        if: ${{ inputs.use_changelog }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: changelog
+          path: ${{ inputs.changelog_file }}
+
+  publish-to-github:
+    name: Publish to GitHub Release 📦
+    if: ${{ inputs.publish_github }}
+    needs:
+      - test-and-build
+    runs-on: ubuntu-latest
+
+    permissions:
+      contents: write  # required for GitHub Releases
+
+    steps:
+      - name: Download the extension package
+        uses: actions/download-artifact@v4
+        with:
+          name: vscode-extension-package
+          path: dist/
       - name: Get repository name
-        if: inputs.publish_github
         id: get_repo_name
         run: |
           repo_full_name=${{ github.repository }}
           repo_name=${repo_full_name#*/}
-          echo "::set-output name=name::$repo_name"
+          echo "name=$repo_name" >> $GITHUB_OUTPUT
+      - name: Download the changelog file
+        if: ${{ inputs.use_changelog }}
+        uses: actions/download-artifact@v4
+        with:
+          name: changelog
       - name: Extract release notes
-        if: ${{ inputs.publish_github && inputs.use_changelog }}
+        if: ${{ inputs.use_changelog }}
         id: extract-release-notes
         uses: ffurrer2/extract-release-notes@v2
         with:
           changelog_file: ${{ inputs.changelog_file }}
       - name: Publish to GitHub release
-        if: ${{ !cancelled() && inputs.publish_github }}
         uses: softprops/action-gh-release@v1
         with:
           files: |
-            *.vsix
-          tag_name: ${{ steps.set_release_tag.outputs.tag }}
-          name: ${{ steps.get_repo_name.outputs.name }} ${{ steps.set_release_tag.outputs.tag }}
+            dist/*.vsix
+          tag_name: ${{ needs.test-and-build.outputs.release_tag }}
+          name: ${{ steps.get_repo_name.outputs.name }} ${{ needs.test-and-build.outputs.release_tag }}
           body: |
-            Release ${{ steps.get_repo_name.outputs.name }} ${{ steps.set_release_tag.outputs.tag }}.
+            Release ${{ steps.get_repo_name.outputs.name }} ${{ needs.test-and-build.outputs.release_tag }}.
             
             ${{ steps.extract-release-notes.outputs.release_notes }}
           draft: false
           prerelease: false
           token: ${{ secrets.GITHUB_TOKEN }}
+
+  publish-to-marketplace:
+    name: Publish to VS Marketplace 📦
+    if: ${{ inputs.publish_marketplace }}
+    needs:
+      - test-and-build
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Download the extension package
+        uses: actions/download-artifact@v4
+        with:
+          name: vscode-extension-package
+          path: dist/
       - name: Publish to marketplace
-        if: ${{ !cancelled() && inputs.publish_marketplace }}
-        run: npm run deploy
+        run: npx @vscode/vsce publish --packagePath dist/*.vsix
         env:
           VSCE_PAT: ${{ secrets.VSCE_PAT }}
+
+  publish-to-openvsx:
+    name: Publish to Open VSX Registry 📦
+    if: ${{ inputs.publish_openvsx }}
+    needs:
+      - test-and-build
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Download the extension package
+        uses: actions/download-artifact@v4
+        with:
+          name: vscode-extension-package
+          path: dist/
+      - name: Publish to Open VSX Registry
+        uses: HaaLeo/publish-vscode-extension@v2
+        with:
+          pat: ${{ secrets.OVSX_PAT }}
+          packagePath: ./dist
