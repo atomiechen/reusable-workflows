@@ -161,7 +161,6 @@ jobs:
           name: vscode-extension-package
           path: dist/
       - name: Publish to Open VSX Registry
-        uses: HaaLeo/publish-vscode-extension@v2
-        with:
-          pat: ${{ secrets.OVSX_PAT }}
-          packagePath: ./dist
+        run: npx ovsx publish dist/*.vsix
+        env:
+          OVSX_PAT: ${{ secrets.OVSX_PAT }}
