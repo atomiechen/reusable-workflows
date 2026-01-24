@@ -6,6 +6,10 @@ inputs:
     description: Tag to checkout (empty for latest tag)
     required: false
     default: ""
+  get_tag_only:
+    description: Whether to only check and output the tag without checking out
+    required: false
+    default: "false"
 
 outputs:
   tag:
@@ -40,6 +44,7 @@ runs:
         fi
         echo "tag=$specified_tag" >> $GITHUB_OUTPUT
     - name: Checkout to specified tag
+      if: ${{ inputs.get_tag_only == 'false' }}
       shell: bash
       run: |
         echo "Checking out to tag ${{ steps.set_tag.outputs.tag }}"
