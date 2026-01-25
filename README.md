@@ -9,7 +9,7 @@ Publish Python distributions to TestPyPI and PyPI, and create a GitHub Release.
 Usage:
 
 ```yaml
-uses: atomiechen/reusable-workflows/.github/workflows/publish-python-distributions.yml@main
+uses: atomiechen/reusable-workflows/.github/workflows/publish-python-distributions.yml@v1
 with:
   publish_testpypi: true  # (Optional) Publish to TestPyPI. Default: false
   publish_pypi: true  # (Optional) Publish to PyPI. Default: false
@@ -30,7 +30,7 @@ Publish VSCode extensions to VS Marketplace, Open VSX Registry, and create a Git
 Usage:
 
 ```yaml
-uses: atomiechen/reusable-workflows/.github/workflows/publish-vse.yml@main
+uses: atomiechen/reusable-workflows/.github/workflows/publish-vse.yml@v1
 with:
   publish_marketplace: true  # (Optional) Publish to VS Marketplace. Default: false
   publish_openvsx: true  # (Optional) Publish to Open VSX Registry. Default: false
@@ -54,7 +54,7 @@ Usage:
 ```yaml
 - name: Verify and checkout to specified tag
   id: verify_tag
-  uses: atomiechen/reusable-workflows/.github/actions/verify-tag@main
+  uses: atomiechen/reusable-workflows/.github/actions/verify-tag@v1
   with:
     tag: v1.0.0  # (Optional) Tag to verify (empty for fetching latest tag). Default: ""
     checkout: true  # (Optional) Whether to checkout to the verified or fetched tag. Default: false
