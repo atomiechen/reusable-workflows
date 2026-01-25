@@ -1,19 +1,19 @@
-name: Checkout Tag 🏷️
-description: Get the tag according to the input or fetch the latest tag, and checkout to that tag.
+name: Verify Tag 🏷️
+description: Verify the input tag or fetch the latest tag, and checkout to that tag if requested.
 
 inputs:
   tag:
-    description: Tag to checkout (empty for latest tag)
+    description: "Tag to verify (empty for fetching latest tag)"
     required: false
     default: ""
-  get_tag_only:
-    description: Whether to only check and output the tag without checking out
+  checkout:
+    description: "Whether to checkout to the verified or fetched tag (default: false)"
     required: false
     default: "false"
 
 outputs:
   tag:
-    description: The tag that was checked out
+    description: The tag that was verified or fetched
     value: ${{ steps.set_tag.outputs.tag }}
 
 runs:
@@ -44,7 +44,7 @@ runs:
         fi
         echo "tag=$specified_tag" >> $GITHUB_OUTPUT
     - name: Checkout to specified tag
-      if: ${{ inputs.get_tag_only == 'false' }}
+      if: ${{ inputs.checkout == 'true' }}
       shell: bash
       run: |
         echo "Checking out to tag ${{ steps.set_tag.outputs.tag }}"

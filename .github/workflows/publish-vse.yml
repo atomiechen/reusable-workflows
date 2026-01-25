@@ -48,11 +48,12 @@ jobs:
             echo "All checkboxes are unchecked. Exiting workflow."
             exit 1
           fi
-      - name: Set and checkout to specified tag
+      - name: Verify and checkout to specified tag
         id: set_release_tag
-        uses: atomiechen/reusable-workflows/.github/actions/checkout-tag@main
+        uses: atomiechen/reusable-workflows/.github/actions/verify-tag@main
         with:
           tag: ${{ inputs.release_tag }}
+          checkout: true
       - name: Debug info
         run: |
           echo "Ref: ${{ github.ref }}"
