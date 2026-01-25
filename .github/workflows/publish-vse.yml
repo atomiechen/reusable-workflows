@@ -30,9 +30,11 @@ on:
         required: false
     secrets:
       VSCE_PAT:
-        required: true
+        description: VSCE Personal Access Token
+        required: false
       OVSX_PAT:
-        required: true
+        description: Open VSX Personal Access Token
+        required: false
 
 jobs:
   test-and-build:

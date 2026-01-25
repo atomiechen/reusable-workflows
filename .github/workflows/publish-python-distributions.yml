@@ -34,9 +34,11 @@ on:
         description: Directory where the Python package is located
     secrets:
       TEST_PYPI_API_TOKEN:
-        required: true
+        description: TestPyPI API Token
+        required: false
       PYPI_API_TOKEN:
-        required: true
+        description: PyPI API Token
+        required: false
 
 jobs:
   build:
