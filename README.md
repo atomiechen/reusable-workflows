@@ -1,6 +1,27 @@
-# Resuable Workflows and Composite Actions
+# Reusable Workflows and Composite Actions
 
-## Resuable Workflows
+## Reusable Workflows
+
+### Publish Python distributions
+
+Publish Python distributions to TestPyPI and PyPI, and create a GitHub Release.
+
+Usage:
+
+```yaml
+uses: atomiechen/reusable-workflows/.github/workflows/publish-python-distributions.yml@v1
+with:
+  publish_testpypi: true  # (Optional) Publish to TestPyPI. Default: false
+  publish_pypi: true  # (Optional) Publish to PyPI. Default: false
+  publish_gh_release: true  # (Optional) Publish to GitHub Release. Default: true
+  use_changelog: true  # (Optional) Extract release notes from CHANGELOG.md. Default: true
+  changelog_file: CHANGELOG.md  # (Optional) Path to changelog file. Default: CHANGELOG.md
+  release_tag: v1.0.0  # (Optional) Tag to package (empty for latest tag). Default: ""
+  package_dir: .  # (Optional) Directory where the Python package is located. Default: .
+secrets:
+  TEST_PYPI_API_TOKEN: ${{ secrets.TEST_PYPI_API_TOKEN }}  # Required if set publish_testpypi
+  PYPI_API_TOKEN: ${{ secrets.PYPI_API_TOKEN }}  # Required if set publish_pypi
+```
 
 ### Publish an npm package
 
@@ -35,27 +56,6 @@ the caller may pass a short-lived `NPM_TOKEN` secret. Configure npm's trusted
 publisher with the **calling** workflow filename. The caller must grant
 `id-token: write`. A run with both publish targets disabled fails before build.
 
-### Publish python distributions
-
-Publish Python distributions to TestPyPI and PyPI, and create a GitHub Release.
-
-Usage:
-
-```yaml
-uses: atomiechen/reusable-workflows/.github/workflows/publish-python-distributions.yml@v1
-with:
-  publish_testpypi: true  # (Optional) Publish to TestPyPI. Default: false
-  publish_pypi: true  # (Optional) Publish to PyPI. Default: false
-  publish_gh_release: true  # (Optional) Publish to GitHub Release. Default: true
-  use_changelog: true  # (Optional) Extract release notes from CHANGELOG.md. Default: true
-  changelog_file: CHANGELOG.md  # (Optional) Path to changelog file. Default: CHANGELOG.md
-  release_tag: v1.0.0  # (Optional) Tag to package (empty for latest tag). Default: ""
-  package_dir: .  # (Optional) Directory where the Python package is located. Default: .
-secrets:
-  TEST_PYPI_API_TOKEN: ${{ secrets.TEST_PYPI_API_TOKEN }}  # Required if set publish_testpypi
-  PYPI_API_TOKEN: ${{ secrets.PYPI_API_TOKEN }}  # Required if set publish_pypi
-```
-
 ### Publish VSCode Extension
 
 Publish VSCode extensions to VS Marketplace, Open VSX Registry, and create a GitHub Release.
@@ -87,7 +87,7 @@ Usage:
 ```yaml
 - name: Verify and checkout to specified tag
   id: verify_tag
-  uses: atomiechen/reusable-workflows/.github/actions/verify-tag@v1
+  uses: atomiechen/reusable-workflows/.github/actions/verify-tag@main
   with:
     tag: v1.0.0  # (Optional) Tag to verify (empty for fetching latest tag). Default: ""
     checkout: true  # (Optional) Whether to checkout to the verified or fetched tag. Default: false
