@@ -10,6 +10,10 @@ inputs:
     description: "Whether to checkout to the verified or fetched tag (default: false)"
     required: false
     default: "false"
+  tag_pattern:
+    description: "Optional git tag glob used to select and validate product tags"
+    required: false
+    default: ""
 
 outputs:
   tag:
@@ -27,25 +31,16 @@ runs:
     - name: Verify and set output tag
       id: set_tag
       shell: bash
+      env:
+        REQUESTED_TAG: ${{ inputs.tag }}
+        TAG_PATTERN: ${{ inputs.tag_pattern }}
       run: |
-        specified_tag=${{ inputs.tag }}
-        if [ -z "$specified_tag" ]; then
-          echo "Input tag is empty. Fetching latest tag."
-          specified_tag=$(git describe --tags $(git rev-list --tags --max-count=1))
-          if [ -z "$specified_tag" ]; then
-            echo "No latest tag available. Exiting workflow."
-            exit 1
-          fi
-        else
-          if ! git rev-parse -q --verify "refs/tags/$specified_tag" >/dev/null; then
-            echo "Invalid tag '$specified_tag'. Exiting workflow."
-            exit 1
-          fi
-        fi
-        echo "tag=$specified_tag" >> $GITHUB_OUTPUT
+        bash "${{ github.action_path }}/resolve-tag.sh" "$REQUESTED_TAG" "$TAG_PATTERN" >> "$GITHUB_OUTPUT"
     - name: Checkout to specified tag
       if: ${{ inputs.checkout == 'true' }}
       shell: bash
+      env:
+        VERIFIED_TAG: ${{ steps.set_tag.outputs.tag }}
       run: |
-        echo "Checking out to tag ${{ steps.set_tag.outputs.tag }}"
-        git checkout ${{ steps.set_tag.outputs.tag }}
+        echo "Checking out to tag $VERIFIED_TAG"
+        git checkout --detach "refs/tags/$VERIFIED_TAG"
