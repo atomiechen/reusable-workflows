@@ -138,12 +138,12 @@ jobs:
         run: npm install -g npm@latest
       - name: Publish with trusted publishing
         if: ${{ env.HAS_NPM_TOKEN == 'false' }}
-        run: npm publish out/*.tgz --access public --provenance
+        run: npm publish ./out/*.tgz --access public --provenance
       - name: Publish with bootstrap token
         if: ${{ env.HAS_NPM_TOKEN == 'true' }}
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
-        run: npm publish out/*.tgz --access public --provenance
+        run: npm publish ./out/*.tgz --access public --provenance
 
   github-release:
     if: ${{ always() && inputs.publish_gh_release && needs.build.result == 'success' && (!inputs.publish_npm || needs.publish-npm.result == 'success') }}
