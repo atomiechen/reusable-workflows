@@ -1,0 +1,176 @@
+name: Publish npm package
+
+on:
+  workflow_call:
+    inputs:
+      publish_npm:
+        type: boolean
+        default: false
+      publish_gh_release:
+        type: boolean
+        default: true
+      use_changelog:
+        type: boolean
+        default: true
+      changelog_file:
+        type: string
+        default: CHANGELOG.md
+      release_tag:
+        type: string
+        default: ""
+      tag_pattern:
+        type: string
+        default: ""
+      tag_prefix:
+        type: string
+        default: v
+      package_dir:
+        type: string
+        default: .
+      package_name:
+        type: string
+        required: true
+      package_manager:
+        type: string
+        default: npm
+      node_version:
+        type: string
+        default: "24"
+    secrets:
+      NPM_TOKEN:
+        required: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    outputs:
+      release_tag: ${{ steps.tag.outputs.tag }}
+    steps:
+      - name: Validate publish options
+        env:
+          PUBLISH_NPM: ${{ inputs.publish_npm }}
+          PUBLISH_GH_RELEASE: ${{ inputs.publish_gh_release }}
+          PACKAGE_MANAGER: ${{ inputs.package_manager }}
+        run: |
+          if [[ "$PUBLISH_NPM" != true && "$PUBLISH_GH_RELEASE" != true ]]; then
+            echo 'Select npm publishing, GitHub Release, or both.' >&2
+            exit 1
+          fi
+          if [[ "$PACKAGE_MANAGER" != npm && "$PACKAGE_MANAGER" != pnpm ]]; then
+            echo 'package_manager must be npm or pnpm.' >&2
+            exit 1
+          fi
+      - name: Verify and checkout release tag
+        id: tag
+        uses: atomiechen/reusable-workflows/.github/actions/verify-tag@main
+        with:
+          tag: ${{ inputs.release_tag }}
+          tag_pattern: ${{ inputs.tag_pattern }}
+          checkout: true
+      - name: Verify package identity and version
+        env:
+          PACKAGE_DIR: ${{ inputs.package_dir }}
+          PACKAGE_NAME: ${{ inputs.package_name }}
+          TAG_PREFIX: ${{ inputs.tag_prefix }}
+          RELEASE_TAG: ${{ steps.tag.outputs.tag }}
+        run: |
+          node - <<'NODE'
+          const fs = require('node:fs');
+          const path = require('node:path');
+          const { PACKAGE_DIR, PACKAGE_NAME, TAG_PREFIX, RELEASE_TAG } = process.env;
+          const pkg = JSON.parse(fs.readFileSync(path.join(PACKAGE_DIR, 'package.json'), 'utf8'));
+          if (!RELEASE_TAG.startsWith(TAG_PREFIX) || pkg.name !== PACKAGE_NAME ||
+              pkg.version !== RELEASE_TAG.slice(TAG_PREFIX.length) || pkg.private) {
+            throw new Error(`Tag ${RELEASE_TAG} must match public ${PACKAGE_NAME}@${pkg.version}`);
+          }
+          NODE
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ inputs.node_version }}
+          registry-url: https://registry.npmjs.org
+      - name: Set up pnpm
+        if: ${{ inputs.package_manager == 'pnpm' }}
+        uses: pnpm/action-setup@v4
+        with:
+          version: "10"
+      - name: Install and build
+        working-directory: ${{ inputs.package_dir }}
+        env:
+          PACKAGE_MANAGER: ${{ inputs.package_manager }}
+        run: |
+          if [[ "$PACKAGE_MANAGER" == npm ]]; then
+            npm ci
+            npm run build --if-present
+          else
+            pnpm install --frozen-lockfile
+            pnpm run build --if-present
+          fi
+      - name: Pack npm artifact
+        working-directory: ${{ inputs.package_dir }}
+        run: |
+          mkdir -p "$RUNNER_TEMP/npm-package"
+          npm pack --pack-destination "$RUNNER_TEMP/npm-package"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: npm-package
+          path: ${{ runner.temp }}/npm-package/*.tgz
+          if-no-files-found: error
+
+  publish-npm:
+    if: ${{ inputs.publish_npm }}
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
+    env:
+      HAS_NPM_TOKEN: ${{ secrets.NPM_TOKEN != '' }}
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: npm-package
+          path: out
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ inputs.node_version }}
+          registry-url: https://registry.npmjs.org
+      - name: Install npm with trusted publishing support
+        run: npm install -g npm@latest
+      - name: Publish with trusted publishing
+        if: ${{ env.HAS_NPM_TOKEN == 'false' }}
+        run: npm publish out/*.tgz --access public --provenance
+      - name: Publish with bootstrap token
+        if: ${{ env.HAS_NPM_TOKEN == 'true' }}
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+        run: npm publish out/*.tgz --access public --provenance
+
+  github-release:
+    if: ${{ always() && inputs.publish_gh_release && needs.build.result == 'success' && (!inputs.publish_npm || needs.publish-npm.result == 'success') }}
+    needs: [build, publish-npm]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.build.outputs.release_tag }}
+          persist-credentials: false
+      - uses: actions/download-artifact@v4
+        with:
+          name: npm-package
+          path: out
+      - name: Extract release notes
+        if: ${{ inputs.use_changelog }}
+        id: notes
+        uses: ffurrer2/extract-release-notes@v2
+        with:
+          changelog_file: ${{ inputs.changelog_file }}
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ needs.build.outputs.release_tag }}
+          name: ${{ inputs.package_name }} ${{ needs.build.outputs.release_tag }}
+          body: ${{ steps.notes.outputs.release_notes }}
+          files: out/*.tgz
+          fail_on_unmatched_files: true
