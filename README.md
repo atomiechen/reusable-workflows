@@ -14,6 +14,7 @@ with:
   publish_testpypi: true  # (Optional) Publish to TestPyPI. Default: false
   publish_pypi: true  # (Optional) Publish to PyPI. Default: false
   publish_gh_release: true  # (Optional) Publish to GitHub Release. Default: true
+  build_only: false  # (Optional) Build/validate artifacts without publishing here. Default: false
   use_changelog: true  # (Optional) Extract release notes from CHANGELOG.md. Default: true
   changelog_file: CHANGELOG.md  # (Optional) Path to changelog file. Default: CHANGELOG.md
   release_tag: v1.0.0  # (Optional) Tag to package (empty for latest tag). Default: ""
@@ -22,6 +23,19 @@ secrets:
   TEST_PYPI_API_TOKEN: ${{ secrets.TEST_PYPI_API_TOKEN }}  # Required if set publish_testpypi
   PYPI_API_TOKEN: ${{ secrets.PYPI_API_TOKEN }}  # Required if set publish_pypi
 ```
+
+The reusable workflow keeps token-based PyPI/TestPyPI publishing for existing
+callers. If a publish target is selected, its corresponding token is required;
+the workflow does not fall through to Trusted Publishing.
+
+For repositories using PyPI Trusted Publishing, set `build_only: true` and keep
+all three publish targets false in this reusable workflow. It will verify the
+tag, build the wheel/sdist, run `twine check`, and upload the
+`python-package-distributions` artifact. Publish that artifact from a separate
+job in the repository's top-level workflow with `id-token: write` and no
+username/password. PyPI currently does not support reusable workflows as the
+Trusted Publisher workflow. `build_only` is mutually exclusive with all
+publish targets.
 
 ### Publish an npm package
 

@@ -15,6 +15,10 @@ on:
         type: boolean
         default: true
         description: Publish to GitHub Release
+      build_only:
+        type: boolean
+        default: false
+        description: Build and validate artifacts without publishing in this workflow
       use_changelog:
         type: boolean
         default: true
@@ -47,16 +51,20 @@ jobs:
     outputs:
       release_tag: ${{ steps.set_release_tag.outputs.tag }}
     steps:
-    - name: Check if all checkboxes are unchecked
-      id: check_checkboxes
+    - name: Validate release mode
       run: |
-        if [[ ${{ inputs.publish_testpypi }} == false && ${{ inputs.publish_pypi }} == false && ${{ inputs.publish_gh_release }} == false ]]; then
-          echo "All checkboxes are unchecked. Exiting workflow."
+        if [[ ${{ inputs.build_only }} == true ]]; then
+          if [[ ${{ inputs.publish_testpypi }} == true || ${{ inputs.publish_pypi }} == true || ${{ inputs.publish_gh_release }} == true ]]; then
+            echo "build_only cannot be combined with publish targets."
+            exit 1
+          fi
+        elif [[ ${{ inputs.publish_testpypi }} == false && ${{ inputs.publish_pypi }} == false && ${{ inputs.publish_gh_release }} == false ]]; then
+          echo "All publish targets are disabled. Exiting workflow."
           exit 1
         fi
     - name: Verify and checkout to specified tag
       id: set_release_tag
-      uses: atomiechen/reusable-workflows/.github/actions/verify-tag@main
+      uses: atomiechen/reusable-workflows/.github/actions/verify-tag@dc0e552d0473b25ff8eccf3f32a97e26d17d5185
       with:
         tag: ${{ inputs.release_tag }}
         checkout: true
@@ -64,16 +72,20 @@ jobs:
       uses: actions/setup-python@v5
       with:
         python-version: "3.x"
-    - name: Install pypa/build
+    - name: Install build and validation tools
       working-directory: ${{ inputs.package_dir }}
       run: >-
         python3 -m
         pip install
         build
+        twine
         --user
     - name: Build a binary wheel and a source tarball
       working-directory: ${{ inputs.package_dir }}
       run: python3 -m build
+    - name: Validate distribution metadata and long description
+      working-directory: ${{ inputs.package_dir }}
+      run: python3 -m twine check dist/*
     - name: Store the distribution packages
       uses: actions/upload-artifact@v4
       with:
@@ -99,8 +111,16 @@ jobs:
       with:
         name: python-package-distributions
         path: dist/
+    - name: Require TestPyPI API token
+      env:
+        TEST_PYPI_API_TOKEN: ${{ secrets.TEST_PYPI_API_TOKEN }}
+      run: |
+        if [ -z "$TEST_PYPI_API_TOKEN" ]; then
+          echo "TEST_PYPI_API_TOKEN is required for reusable-workflow TestPyPI publishing."
+          exit 1
+        fi
     - name: Publish distribution 📦 to TestPyPI
-      uses: pypa/gh-action-pypi-publish@release/v1
+      uses: pypa/gh-action-pypi-publish@dc37677b2e1c63e2034f94d8a5b11f265b73ba33 # release/v1
       with:
         password: ${{ secrets.TEST_PYPI_API_TOKEN }}
         repository-url: https://test.pypi.org/legacy/
@@ -120,8 +140,16 @@ jobs:
       with:
         name: python-package-distributions
         path: dist/
+    - name: Require PyPI API token
+      env:
+        PYPI_API_TOKEN: ${{ secrets.PYPI_API_TOKEN }}
+      run: |
+        if [ -z "$PYPI_API_TOKEN" ]; then
+          echo "PYPI_API_TOKEN is required for reusable-workflow PyPI publishing."
+          exit 1
+        fi
     - name: Publish distribution 📦 to PyPI
-      uses: pypa/gh-action-pypi-publish@release/v1
+      uses: pypa/gh-action-pypi-publish@dc37677b2e1c63e2034f94d8a5b11f265b73ba33 # release/v1
       with:
         password: ${{ secrets.PYPI_API_TOKEN }}
         verbose: true
